@@ -207,8 +207,12 @@ with open(LOGS_DIR / log_file) as f:
 
     content = "\n".join(
         [
-            f"{CHOICE_EMOJI.get(r['choice'], '❔')} {r['code']} {r['confidence']:.2f} "
-            f"{r['probabilities'].get('strong_buy'):.2f}/{r['probabilities'].get('neutral'):.2f}/{r['probabilities'].get('avoid'):.2f} "
+            f"[{r['code']}] "
+            f"{CHOICE_EMOJI.get(r['choice'], '❔')} {r['confidence']:.2f} "
+            f"📈 {r['probabilities'].get('strong_buy'):.2f} "
+            f"📊 {r['probabilities'].get('neutral'):.2f} "
+            f"📉 {r['probabilities'].get('avoid'):.2f} "
+            f"¥ {r['close']:>8,.1f} "
             f"({r['name']})"
             for r in records
         ]
