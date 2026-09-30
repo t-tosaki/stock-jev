@@ -26,6 +26,7 @@ BASE_DAY_OFFSET = -1
 # log
 run_time = datetime.now(ZoneInfo("Asia/Tokyo")).strftime("%Y-%m-%d")
 log_file = f"{run_time}.jsonl"
+LOGS_DIR.mkdir(parents=True, exist_ok=True)
 (LOGS_DIR / log_file).unlink(missing_ok=True)
 
 # universe
