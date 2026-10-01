@@ -2,8 +2,8 @@ name: daily-signal
 
 on:
   schedule:
-    # 7:00 JST (Mon ~ Fri) = 22:00 UTC (Sun ~ Thu)
-    - cron: "0 22 * * 0-4"
+    # 6:47 JST (Mon ~ Fri) = 21:47 UTC (Sun ~ Thu)
+    - cron: "47 21 * * 0-4"
   workflow_dispatch:
 
 permissions:
