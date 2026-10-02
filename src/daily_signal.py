@@ -69,6 +69,10 @@ for t in tickers:
 
     # reversal
     df.ta.rsi(length=14, append=True)
+    df["RSI_14_PCT"] = df["RSI_14"].expanding().rank(pct=True) * 100
+    df.ta.willr(length=200, append=True)
+    df.ta.donchian(lower_length=60, upper_length=60, append=True)
+    df["DD_60"] = (df["Close"] / df["DCU_60_60"] - 1) * 100
 
     # return
     for n in (5, 25, 75):
@@ -123,7 +127,14 @@ for t in tickers:
                 "now": round(data_now["RSI_14"], 1),
                 "5_days_ago": round(data_5["RSI_14"], 1),
                 "25_days_ago": round(data_25["RSI_14"], 1),
-            }
+            },
+            "rsi14_percentile": round(data_now["RSI_14_PCT"], 1),
+            "willr200": round(data_now["WILLR_200"], 1),
+            "drawdown60_percent": {
+                "now": round(data_now["DD_60"], 2),
+                "5_days_ago": round(data_5["DD_60"], 2),
+                "25_days_ago": round(data_25["DD_60"], 2),
+            },
         },
         "return": {
             "roc5_percent": round(data_now["ROC_5"], 2),
@@ -159,7 +170,15 @@ for t in tickers:
                         "neutral": "Mixed or unclear",
                         "avoid": "Likely to fall or stagnate",
                     },
-                )
+                ),
+                "rebound": Choice(
+                    instructions="Is this Japanese stock (listed on the Tokyo Stock Exchange) oversold and likely to rebound within 1 week to 1 month?",
+                    criteria={
+                        "likely_rebound": "Likely to rebound",
+                        "unclear": "Mixed or unclear",
+                        "still_falling": "Likely to keep falling",
+                    },
+                ),
             },
         )
 
@@ -175,9 +194,20 @@ for t in tickers:
                     "state": state,
                     "model": jev_result.model,
                     "usage": dict(jev_result.usage),
-                    "choice": jev_result.answers["signal"].choice,
-                    "confidence": jev_result.answers["signal"].confidence,
-                    "probabilities": dict(jev_result.answers["signal"].probabilities),
+                    "signal": {
+                        "choice": jev_result.answers["signal"].choice,
+                        "confidence": jev_result.answers["signal"].confidence,
+                        "probabilities": dict(
+                            jev_result.answers["signal"].probabilities
+                        ),
+                    },
+                    "rebound": {
+                        "choice": jev_result.answers["rebound"].choice,
+                        "confidence": jev_result.answers["rebound"].confidence,
+                        "probabilities": dict(
+                            jev_result.answers["rebound"].probabilities
+                        ),
+                    },
                 },
                 ensure_ascii=False,
             )
@@ -196,22 +226,27 @@ with open(LOGS_DIR / log_file) as f:
         "neutral": "🟡",
         "avoid": "🔴",
     }
+    REBOUND_EMOJI = {
+        "likely_rebound": "🟢",
+        "unclear": "🟡",
+        "still_falling": "🔴",
+    }
 
     records = sorted(
         [json.loads(line) for line in f if line.strip()],
         key=lambda r: (
-            CHOICE_ORDER.get(r["choice"], 99),
-            -r["confidence"],
+            CHOICE_ORDER.get(r["signal"]["choice"], 99),
+            -r["signal"]["confidence"],
         ),
     )
 
     content = "\n".join(
         [
             f"[{r['code']}] "
-            f"{CHOICE_EMOJI.get(r['choice'], '❔')} {r['confidence']:.2f} "
-            f"📈 {r['probabilities'].get('strong_buy'):.2f} "
-            f"📊 {r['probabilities'].get('neutral'):.2f} "
-            f"📉 {r['probabilities'].get('avoid'):.2f} "
+            f"{CHOICE_EMOJI.get(r['signal']['choice'], '❔')} "
+            f"({r['signal']['probabilities']['strong_buy']:.2f},{r['signal']['probabilities']['neutral']:.2f},{r['signal']['probabilities']['avoid']:.2f}) "
+            f"{REBOUND_EMOJI.get(r['rebound']['choice'], '❔')} "
+            f"({r['rebound']['probabilities']['likely_rebound']:.2f},{r['rebound']['probabilities']['unclear']:.2f},{r['rebound']['probabilities']['still_falling']:.2f}) "
             f"¥ {r['close']:>8,.1f} "
             f"({r['name']})"
             for r in records
