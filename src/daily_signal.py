@@ -216,43 +216,71 @@ for t in tickers:
 
 # send notify
 with open(LOGS_DIR / log_file) as f:
-    CHOICE_ORDER = {
+    ORDER = {
         "strong_buy": 0,
         "neutral": 1,
         "avoid": 2,
+        "likely_rebound": 0,
+        "unclear": 1,
+        "still_falling": 2,
     }
-    CHOICE_EMOJI = {
+    EMOJI = {
         "strong_buy": "🟢",
         "neutral": "🟡",
         "avoid": "🔴",
-    }
-    REBOUND_EMOJI = {
         "likely_rebound": "🟢",
         "unclear": "🟡",
         "still_falling": "🔴",
     }
 
-    records = sorted(
-        [json.loads(line) for line in f if line.strip()],
-        key=lambda r: (
-            CHOICE_ORDER.get(r["signal"]["choice"], 99),
-            -r["signal"]["confidence"],
-        ),
+    records = [json.loads(line) for line in f if line.strip()]
+
+    def ranked(key):
+        return sorted(
+            records,
+            key=lambda r: (ORDER.get(r[key]["choice"], 99), -r[key]["confidence"]),
+        )
+
+    top = "\n".join(
+        [
+            "**signal**",
+            "```",
+            *[
+                f"[{r['code']}] {r['signal']['probabilities']['strong_buy']:.2f} / {r['signal']['probabilities']['avoid']:.2f} ({r['name']})"
+                for r in ranked("signal")
+                if r["signal"]["choice"] == "strong_buy"
+                and r["signal"]["probabilities"]["strong_buy"] >= 0.5
+            ],
+            "```",
+            "**rebound**",
+            "```",
+            *[
+                f"[{r['code']}] {r['rebound']['probabilities']['likely_rebound']:.2f} / {r['rebound']['probabilities']['still_falling']:.2f} ({r['name']})"
+                for r in ranked("rebound")
+                if r["rebound"]["choice"] == "likely_rebound"
+                and r["rebound"]["probabilities"]["likely_rebound"] >= 0.5
+            ],
+            "```",
+        ]
     )
 
-    content = "\n".join(
+    full = "\n".join(
         [
             f"[{r['code']}] "
-            f"{CHOICE_EMOJI.get(r['signal']['choice'], '❔')} "
+            f"{EMOJI.get(r['signal']['choice'], '❔')} "
             f"({r['signal']['probabilities']['strong_buy']:.2f},{r['signal']['probabilities']['neutral']:.2f},{r['signal']['probabilities']['avoid']:.2f}) "
-            f"{REBOUND_EMOJI.get(r['rebound']['choice'], '❔')} "
+            f"{EMOJI.get(r['rebound']['choice'], '❔')} "
             f"({r['rebound']['probabilities']['likely_rebound']:.2f},{r['rebound']['probabilities']['unclear']:.2f},{r['rebound']['probabilities']['still_falling']:.2f}) "
             f"¥ {r['close']:>8,.1f} "
             f"({r['name']})"
-            for r in records
+            for r in ranked("signal")
         ]
     )
-    content = "```\n" + content + "\n```"
 
-    res = requests.post(os.environ["DISCORD_WEBHOOK_URL"], json={"content": content})
+    res = requests.post(
+        os.environ["DISCORD_WEBHOOK_URL"],
+        data={"payload_json": json.dumps({"content": top})},
+        files={"file": ("result.txt", full.encode("utf-8"))},
+    )
+    print(res.status_code, res.text)
     res.raise_for_status()
